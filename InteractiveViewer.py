@@ -7,11 +7,11 @@ import matplotlib.pyplot as plt
 from WireEKF import WireEKF
 from SimModelAndTrackDLO import SimModelAndTrackDLO
 
-
-# --- Utilities ---
-
 class History:
-    """Records position history for all nodes over time."""
+    """
+    Records position history for all nodes over time.
+    For use when plotting steps.
+    """
     
     def __init__(self, n_nodes: int):
         self.n_nodes = n_nodes
@@ -40,19 +40,19 @@ class History:
         return self.positions[step]
 
 
-class InteractiveSimulation:
+class InteractiveViewer:
     """Interactive EKF simulation driven by keyboard input."""
     
     def __init__(
         self,
         n_nodes: int = 10,
-        sensor_var: float = 0.001,
         dataset_model: str | None = None,
         dataset_trackdlo: str | None = None,
         print_table: bool = False,
+        q_diag: float = 0.01,
+        r_diag: float = 0.05,
     ):
         self.n_nodes = n_nodes
-        self.sensor_var = sensor_var
         self.print_table = print_table
 
         # Initialize simulator (loads datasets if provided)
@@ -64,6 +64,8 @@ class InteractiveSimulation:
             initial_nodes=np.zeros((3 * n_nodes, 1)),
             get_model_nodes=self.sim.get_model_nodes if self.sim.model_dataset is not None else None,
             get_trackdlo_nodes=self.sim.get_trackdlo_nodes if self.sim.trackdlo_dataset is not None else None,
+            q_diag = q_diag,
+            r_diag = r_diag
         )
         
         self.meas_h = History(n_nodes)
@@ -103,13 +105,13 @@ class InteractiveSimulation:
             if self.sim.model_dataset is not None:
                 model_nodes = self.sim.get_model_nodes(self.curr_t)
             else:
-                # TODO: When the model callback is done, insert the callback here!
+                # TODO: When the model is done and can be used in realtime, insert the callback here!
                 raise ValueError("No model callback was supplied for model nodes.")
 
             if self.sim.trackdlo_dataset is not None:
                 measurement = self.sim.get_trackdlo_nodes(self.curr_t)
             else:
-                # TODO: When TrackDLO have been setup, insert the callback here!
+                # TODO: When TrackDLO is setup and tracks realtime, insert the callback here!
                 raise ValueError("No TrackDLO callback was supplied for measurements.")
             
             # Run filter steps
@@ -181,7 +183,8 @@ class InteractiveSimulation:
             self.ax.plot(pos[:, 0], pos[:, 1], pos[:, 2], color=wire_color, alpha=0.3, lw=1)
         
         # Plot trajectories for each node
-        for node_idx in range(0, self.n_nodes):
+        skip_nodes = 0 # if set to e.g. 2, only the trajectory of every third node is drawn.
+        for node_idx in range(0, self.n_nodes, 1+skip_nodes):
             x, y, z = history.get_node_trajectory(node_idx)
             self.ax.plot(x, y, z, color=traj_color, alpha=0.8, lw=1, label=f'{label_prefix}' if node_idx == 0 else "")
 
@@ -190,17 +193,19 @@ def main():
     parser = argparse.ArgumentParser(description='Run interactive EKF simulation.')
     parser.add_argument('--dataset-model', type=str, default=None, help='CSV path for model dataset')
     parser.add_argument('--dataset-trackdlo', type=str, default=None, help='CSV path for TrackDLO dataset')
-    parser.add_argument('--sensor-var', type=float, default=0.001, help='Sensor noise variance')
     parser.add_argument('--n-nodes', type=int, default=10, help='Number of wire nodes')
     parser.add_argument('--print-table', type=bool, default=False, help='Print estimation table at each step')
+    parser.add_argument('--q-diag', type=float, default=0.01, help='Q-diagonal values')
+    parser.add_argument('--r-diag', type=float, default=0.05, help='R-diagonal values')
     args = parser.parse_args()
     
-    sim = InteractiveSimulation(
+    sim = InteractiveViewer(
         n_nodes=args.n_nodes,
-        sensor_var=args.sensor_var,
         dataset_model=args.dataset_model,
         dataset_trackdlo=args.dataset_trackdlo,
         print_table=args.print_table,
+        q_diag = args.q_diag,
+        r_diag = args.r_diag
     )
     plt.show()
 

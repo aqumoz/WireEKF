@@ -35,6 +35,9 @@ class WireEKF:
         self.get_trackdlo_nodes = get_trackdlo_nodes
         self.t = 0.0
 
+        print(f"q_diag: {q_diag}")
+        print(f"r_diag: {r_diag}")
+
     def _ensure_column_state(self, nodes: np.ndarray) -> np.ndarray:
         nodes = np.asarray(nodes)
         if nodes.shape != (3 * self.n, 1):
