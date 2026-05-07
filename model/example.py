@@ -36,11 +36,9 @@ ee_quat = np.array([0.0, np.sin(np.pi / 4), 0.0, np.cos(np.pi / 4)])
 # ============================================================
 # 4.  External forces
 # ============================================================
-# Gravity on every node — including node 0 so the EE constraint
-# correctly reacts to the full wire weight (see sim_setup.gravity_forces).
 f_ext = gravity_forces(params)
 
-# Optional tip load
+# Tip load
 tip_force = np.zeros(6)
 f_ext[-6:] += tip_force
 
