@@ -1,11 +1,6 @@
 import numpy as np
 from quaternion_utils import quat_mul, quat_conj, quat_to_rotm
 
-
-# ---------------------------------------------------------------------------
-# Segment constraints
-# ---------------------------------------------------------------------------
-
 def solve_stretch_shear(
     p0: np.ndarray,
     inv_mass0: float,
@@ -66,10 +61,10 @@ def solve_stretch_shear(
     C_glob = (p1 - p0) / rest_length - d3
     C_loc  = R.T @ C_glob                     # constraint in local material frame
 
-    # Isotropic effective inverse mass (same for all local directions)
+    # Isotropic effective inverse mass
     w = (inv_mass0 + inv_mass1) / rest_length + inv_mass_q0 * 4.0 * rest_length
 
-    # XPBD update — Eq. (26): damping enters numerator and denominator
+    # XPBD update — Eq. (26)
     alpha_tilde = alpha_vec / dt**2
     numerator   = -C_loc - alpha_tilde * lambda_loc - gamma * (C_loc - C_loc_n)
     denominator = (1.0 + gamma) * w + alpha_tilde + 1e-9
@@ -133,7 +128,7 @@ def solve_bend_twist(
 
     omega = quat_mul(quat_conj(q0), q1)
 
-    # Shorter-arc selection (quaternion double-cover)
+    # Shorter-arc selection
     omega_plus  = omega + rest_darboux
     omega_minus = omega - rest_darboux
     if np.dot(omega_minus, omega_minus) > np.dot(omega_plus, omega_plus):
@@ -158,13 +153,6 @@ def solve_bend_twist(
     return corrq0, corrq1, dlambda_loc
 
 
-# ---------------------------------------------------------------------------
-# End-effector constraints  (single-sided: EE target treated as fixed)
-#
-# For rigid pins alpha = 0  →  gamma = α·β/dt = 0  →  no damping term.
-# Damping only activates when using a compliant EE attachment (alpha > 0).
-# ---------------------------------------------------------------------------
-
 def solve_ee_position(
     p0: np.ndarray,
     inv_mass0: float,
@@ -181,7 +169,6 @@ def solve_ee_position(
     Constraint:
         C = p0 − ee_pos  =  0
 
-    The EE target has infinite mass (inv_mass = 0), so only the node moves.
 
     Parameters
     ----------
@@ -227,8 +214,6 @@ def solve_ee_orient(
     Constraint:
         C = xyz_part( quat_conj(ee_quat) * q0 )  =  0
 
-    The EE target has infinite rotational mass, so only the node rotates.
-
     Parameters
     ----------
     q0          : (4,)   current orientation quaternion  [x,y,z,w]
@@ -248,10 +233,10 @@ def solve_ee_orient(
     if C_n is None:
         C_n = np.zeros(3)
 
-    # Relative rotation from ee_quat to q0 (Darboux vector)
+    # Relative rotation from ee_quat to q0
     omega = quat_mul(quat_conj(ee_quat), q0)
 
-    # Shorter-arc selection (quaternion double-cover)
+    # Shorter-arc selection
     rest        = np.array([0.0, 0.0, 0.0, 1.0])
     omega_plus  = omega + rest
     omega_minus = omega - rest
@@ -268,16 +253,11 @@ def solve_ee_orient(
 
     correction  = -dlambda
     omega_corr  = np.array([correction[0], correction[1], correction[2], 0.0])
-    # Node maps to q1 in the Darboux pair, so correction sign is negative
+    
     corr_q0     = -inv_mass_q0 * quat_mul(ee_quat, omega_corr)
 
     return corr_q0, dlambda
 
-
-# ---------------------------------------------------------------------------
-# Constraint violation helpers
-# (used to precompute C^n before the solver loop starts)
-# ---------------------------------------------------------------------------
 
 def stretch_shear_violation(p0, p1, q0, rest_length):
     """Return the local-frame stretch/shear constraint violation for a segment."""

@@ -55,7 +55,7 @@ plt.show()
 
 for time in steps:
     x_init, v_init, _cw, ee_wrench = sim.estimate_wire_state(
-        x_init, v_init, ee_pos, ee_quat, np.zeros(6,1), f_ext,
+        x_init, v_init, ee_pos, ee_quat, np.zeros(6), f_ext,
     )
 
     plot_rod_frames(ax, x_init, params.dof, params.N, time, frame_scale=0.015)

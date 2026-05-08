@@ -3,18 +3,14 @@ import numpy as np
 
 from wire_simulator import WireParams, WireSimulator
 
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Wire geometry
-# ══════════════════════════════════════════════════════════════════════════════
 @dataclass(frozen=True)
 class _Wire:
     """Physical constants for the cable under test."""
 
     # Overall
-    total_length : float = 0.460       # m   — measured physical wire length
+    total_length : float = 0.460       # m
     n_nodes      : int   = 20          # number of simulation nodes
-    diameter     : float = 0.014       # m   — outer diameter of the cable
+    diameter     : float = 0.014       # m
 
     # Derived cross-section (solid circular)
     @property
@@ -30,19 +26,14 @@ class _Wire:
 
 WIRE = _Wire()
 
-
-
 @dataclass(frozen=True)
 class _Material:
     """
     Elastic and inertial material properties.
-
-    E was tuned from an initial rubber estimate of 1 MPa up to 5 MPa to
-    match the observed sag and oscillation frequency in the hang test.
     """
-    E   : float = 5.0e6    # Pa   — Young's modulus  (identified)
-    nu  : float = 0.3      # —    — Poisson's ratio   (assumed, rubber)
-    rho : float = 400    # kg/m³ — density  (= 1200, natural rubber)
+    E   : float = 100e6    # Pa   — Young's modulus  
+    nu  : float = 0.3      # —    — Poisson's ratio  
+    rho : float = 400    # kg/m³ — density
 
     @property
     def G(self): return self.E / (2.0 * (1.0 + self.nu))   # shear modulus
@@ -50,35 +41,22 @@ class _Material:
 MATERIAL = _Material()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Gripper / tool — identified against FT sensor data
-# ══════════════════════════════════════════════════════════════════════════════
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Solver settings
-# ══════════════════════════════════════════════════════════════════════════════
 @dataclass(frozen=True)
 class _Solver:
     dt          : float = 0.01   # s   — time step
-    iterations  : int   = 30     # —   — Gauss-Seidel iterations per step
-    I_eff_scale : float = 20.0   # —   — rotational inertia scale factor
-    #   The effective rotational inertia per node is
-    #       I_eff = I_eff_scale * m_node * L²
-    #   This is a solver-convergence parameter (see example.py comments).
-    zeta_bend   : float = 0.10   # —   — bending damping ratio (10 % critical)
+    iterations  : int   = 30     # —   — iterations per step
+    I_eff_scale : float = 1.0   # —   — rotational inertia scale factor %
+    zeta_bend   : float = 1   # —   — bending damping ratio
 
 SOLVER = _Solver()
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Factory function
-# ══════════════════════════════════════════════════════════════════════════════
 def create_sim() -> tuple[WireSimulator, WireParams]:
     """
     Build and return a fully configured (WireSimulator, WireParams) pair.
 
     All physical and solver parameters come from the module-level constants
-    WIRE, MATERIAL, GRIPPER, and SOLVER above.
+    WIRE, MATERIAL and SOLVER above.
 
     Returns
     -------
@@ -102,9 +80,6 @@ def create_sim() -> tuple[WireSimulator, WireParams]:
     N  = w.n_nodes
     L  = w.segment_length
 
-    # ── Elastic compliance (one value per local axis) ──────────────────────
-    #   alpha_stretch : [shear_x, shear_y, axial_z]   units  m/N
-    #   alpha_bend    : [bend_x,  bend_y,  twist_z]   units  rad/(N·m)
     alpha_stretch = np.array([
         L / (m.G * w.area),       # shear X
         L / (m.G * w.area),       # shear Y
@@ -124,8 +99,6 @@ def create_sim() -> tuple[WireSimulator, WireParams]:
     I_num  = [np.eye(3) * I_eff for _ in range(N)]
 
     # ── Rayleigh constraint damping ────────────────────────────────────────
-    #   omega_seg = natural bending frequency of one segment
-    #   beta_bend = damping coefficient  [s]  =  zeta * beta_critical
     omega_seg = np.sqrt(m.E * w.I_bending / (m_node * L**3))
     beta_bend = s.zeta_bend * (2.0 / omega_seg)
 
@@ -138,7 +111,7 @@ def create_sim() -> tuple[WireSimulator, WireParams]:
         alpha_bend    = alpha_bend,
         beta_stretch  = np.zeros(3),
         beta_bend     = np.full(3, beta_bend),
-        alpha_ee_pos    = 0.0,    # rigid EE pin
+        alpha_ee_pos    = 0.0,    
         alpha_ee_orient = 0.0,
         beta_ee_pos     = 0.0,
         beta_ee_orient  = 0.0,
