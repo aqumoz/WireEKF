@@ -31,7 +31,7 @@ class _Material:
     """
     Elastic and inertial material properties.
     """
-    E   : float = 100e6    # Pa   — Young's modulus  
+    E   : float = 6230e6    # Pa   — Young's modulus  
     nu  : float = 0.3      # —    — Poisson's ratio  
     rho : float = 400    # kg/m³ — density
 
@@ -45,10 +45,30 @@ MATERIAL = _Material()
 class _Solver:
     dt          : float = 0.01   # s   — time step
     iterations  : int   = 30     # —   — iterations per step
-    I_eff_scale : float = 1.0   # —   — rotational inertia scale factor %
+    I_eff_scale : float = 2.0   # —   — rotational inertia scale factor %
     zeta_bend   : float = 1   # —   — bending damping ratio
 
 SOLVER = _Solver()
+
+@dataclass(frozen=True)
+class _Gripper:
+    """
+    Geometric and inertial properties of the tool attached to the flange.
+ 
+    These values are used by transform_ft_wrench() to gravity-compensate
+    the raw FT sensor readings and shift the reference point to the wire
+    attachment.
+ 
+    Coordinate convention: all offsets are along the flange +z axis.
+    The UR10 flange z-axis points away from the robot toward the tool.
+    """
+    mass          : float = 1.09    # kg  — total gripper mass  (identified)
+    attach_offset : float = 0.140   # m   — flange origin → wire attachment
+    com_offset    : float = 0.057   # m   — flange origin → gripper CoM
+    #                                         (identified from torque channels)
+ 
+GRIPPER = _Gripper()
+ 
 
 
 def create_sim() -> tuple[WireSimulator, WireParams]:

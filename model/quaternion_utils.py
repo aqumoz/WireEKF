@@ -92,3 +92,56 @@ def euler_xyz_to_quat(euler_xyz: np.ndarray) -> np.ndarray:
     z =  cx*cy*sz - sx*sy*cz
 
     return np.array([x, y, z, w])
+
+
+ 
+def rotm_to_quat(R):
+    """3x3 rotation matrix -> quaternion [x,y,z,w]  (Shepperd method)."""
+    tr = R[0,0] + R[1,1] + R[2,2]
+    if tr > 0:
+        s = 0.5 / np.sqrt(tr + 1.0)
+        return np.array([(R[2,1]-R[1,2])*s, (R[0,2]-R[2,0])*s,
+                         (R[1,0]-R[0,1])*s, 0.25/s])
+    elif R[0,0] > R[1,1] and R[0,0] > R[2,2]:
+        s = 2.0 * np.sqrt(1.0 + R[0,0] - R[1,1] - R[2,2])
+        return np.array([0.25*s, (R[0,1]+R[1,0])/s,
+                         (R[0,2]+R[2,0])/s, (R[2,1]-R[1,2])/s])
+    elif R[1,1] > R[2,2]:
+        s = 2.0 * np.sqrt(1.0 + R[1,1] - R[0,0] - R[2,2])
+        return np.array([(R[0,1]+R[1,0])/s, 0.25*s,
+                         (R[1,2]+R[2,1])/s, (R[0,2]-R[2,0])/s])
+    else:
+        s = 2.0 * np.sqrt(1.0 + R[2,2] - R[0,0] - R[1,1])
+        return np.array([(R[0,2]+R[2,0])/s, (R[1,2]+R[2,1])/s,
+                         0.25*s,             (R[1,0]-R[0,1])/s])
+ 
+ 
+def rotvec_to_rotm(rvec):
+    """
+    Rodrigues axis-angle vector -> 3x3 rotation matrix.
+    This is how UR robots encode TCP orientation in their state output.
+    """
+    angle = np.linalg.norm(rvec)
+    if angle < 1e-12:
+        return np.eye(3)
+    axis = rvec / angle
+    K = np.array([[        0, -axis[2],  axis[1]],
+                  [ axis[2],         0, -axis[0]],
+                  [-axis[1],  axis[0],        0]])
+    return np.eye(3) + np.sin(angle) * K + (1.0 - np.cos(angle)) * (K @ K)
+ 
+
+def state_from_positions(positions):
+    """Build (7*N,) state from N world-frame positions, tangent-derived quats."""
+    N  = len(positions)
+    xs = np.zeros(7 * N)
+    for i in range(N):
+        xs[7*i:7*i+3] = positions[i]
+        d3 = (positions[i+1] - positions[i] if i < N-1
+              else positions[i] - positions[i-1])
+        d3 /= np.linalg.norm(d3)
+        ref = np.array([0., 1., 0.]) if abs(d3[1]) < 0.9 else np.array([1., 0., 0.])
+        d1  = np.cross(ref, d3);  d1 /= np.linalg.norm(d1)
+        d2  = np.cross(d3, d1)
+        xs[7*i+3:7*i+7] = rotm_to_quat(np.column_stack([d1, d2, d3]))
+    return xs

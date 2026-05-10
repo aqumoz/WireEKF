@@ -22,7 +22,7 @@ base_euler_xyz = np.array([0.0, np.pi / 2, 0.0])   # cable z-axis → world X
 joint_angles        = np.zeros((3, params.N - 1))
 joint_angles[1, :]  = np.deg2rad(1.0)
 
-x_init = sim.joint_to_world_init(base_pos, base_euler_xyz, joint_angles) # or just put in actual values from vision
+x_init = sim.joint_to_world_init(base_pos, base_euler_xyz, joint_angles)
 v_init = np.zeros(6 * params.N)
 
 
