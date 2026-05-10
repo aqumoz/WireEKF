@@ -18,7 +18,7 @@ sim, params = create_sim()
 # ══════════════════════════════════════════════════════════════════════════════
 # 2.  Load data
 # ══════════════════════════════════════════════════════════════════════════════
-DATA_PATH = "data/ctrl_mads_lauge_anders_20260507_112904"
+DATA_PATH = "data_Viktor/ctrl_mads_lauge_anders_20260507_112904"
 
 # Skip the first T_START seconds of the recording (e.g. robot is stationary)
 T_START = 0   # s  — set to 0.0 to use the full dataset
@@ -108,6 +108,8 @@ offset_wire = np.array([0.0, 0.0, GRIPPER.attach_offset])   # in wire/flange fra
 ee_pos_tcp  = np.zeros((len(tcp_t), 3))
 ee_quat_tcp = np.zeros((len(tcp_t), 4))
 
+ft_pos_tcp = ft[['fx', 'fy', 'fz', 'tx', 'ty', 'tz']].values   # (n_ft, 6)
+
 for k in range(len(tcp_t)):
     R_tcp  = rotvec_to_rotm(tcp_rotvec[k])
     R_wire = R_tcp @ R_tcp_to_wire               # apply orientation calibration
@@ -125,6 +127,15 @@ _interp_pos  = [interp1d(tcp_t, ee_pos_tcp[:, d],  fill_value='extrapolate')
 _interp_quat = [interp1d(tcp_t, ee_quat_tcp[:, d], fill_value='extrapolate')
                 for d in range(4)]
 
+_interp_ft  = [interp1d(ft_t, ft_pos_tcp[:, d],  fill_value='extrapolate')
+                for d in range(6)]
+
+# Raw TCP pose interpolators (original position + rotation vector, no calibration)
+_interp_tcp_pos    = [interp1d(tcp_t, tcp_pos[:, d],    fill_value='extrapolate')
+                      for d in range(3)]
+_interp_tcp_rotvec = [interp1d(tcp_t, tcp_rotvec[:, d], fill_value='extrapolate')
+                      for d in range(3)]
+
 def ee_at(t):
     """Return (ee_pos, ee_quat) interpolated to simulation time t."""
     t   = float(np.clip(t, tcp_t[0], tcp_t[-1]))
@@ -132,6 +143,22 @@ def ee_at(t):
     q   = np.array([f(t) for f in _interp_quat])
     q  /= np.linalg.norm(q)           # re-normalise after linear interp
     return pos, q
+
+
+def ft_at(t):
+    """Return ft interpolated to simulation time t."""
+    t   = float(np.clip(t, ft_t[0], ft_t[-1]))
+    ft = np.array([f(t) for f in _interp_ft])
+    return ft
+
+
+def tcp_pose_at(t):
+    """
+    Return the raw TCP pose as a 6D vector [x, y, z, rx, ry, rz] at time t,
+    as recorded by the robot — no calibration applied.
+    """
+    t = float(np.clip(t, tcp_t[0], tcp_t[-1]))
+    return np.array([f(t) for f in _interp_tcp_pos + _interp_tcp_rotvec])
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -155,7 +182,7 @@ f_ext[-6:] += tip_force
 steps = np.arange(0.0, T_end + SOLVER.dt, SOLVER.dt)
 
 x_history = []
-plot = False
+plot = True
 if plot == True:
     fig = plt.figure(figsize=(9, 7))
     ax  = fig.add_subplot(111, projection='3d')
@@ -164,10 +191,17 @@ if plot == True:
 
 for time in steps:
     ee_pos, ee_quat = ee_at(time)
+    ft_cur = ft_at(time)
+    tcp_cur = tcp_pose_at(time)
 
+
+    print(tcp_cur)
     x_init, v_init, _cw, ee_wrench = sim.estimate_wire_state(
         x_init, v_init, ee_pos, ee_quat, np.zeros(6), f_ext,
     )
+
+    
+
     x_history.append(np.append(time, x_init)) 
 
     if plot == True:
