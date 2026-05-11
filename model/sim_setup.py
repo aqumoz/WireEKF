@@ -10,7 +10,7 @@ class _Wire:
     # Overall
     total_length : float = 0.460       # m
     n_nodes      : int   = 20          # number of simulation nodes
-    diameter     : float = 0.016       # m
+    diameter     : float = 0.015       # m
 
     # Derived cross-section (solid circular)
     @property
@@ -25,18 +25,22 @@ class _Wire:
     def segment_length(self): return self.total_length / self.n_nodes
 
 WIRE = _Wire()
+# ── Physical measurements ─────────────────────────────────────────────────────
+_WIRE_MASS   = 0.0266   # kg  — measured on scale
+_WIRE_DIAM   = 0.015    # m   — measured with calipers
+_WIRE_LENGTH = 0.460    # m   — measured
+
+_rho = _WIRE_MASS / (np.pi * (_WIRE_DIAM / 2)**2 * _WIRE_LENGTH)
 
 @dataclass(frozen=True)
 class _Material:
-    """
-    Elastic and inertial material properties.
-    """
-    E   : float = 5.0e6    # Pa   — Young's modulus  
-    nu  : float = 0.3      # —    — Poisson's ratio  
-    rho : float = 400    # kg/m³ — density
+    E   : float = 2.4054e+07
+    nu  : float = 0.3
+    rho : float = _rho        # derived from measurements above — no free parameter
 
     @property
-    def G(self): return self.E / (2.0 * (1.0 + self.nu))   # shear modulus
+    def G(self): return self.E / (2.0 * (1.0 + self.nu))
+
 
 MATERIAL = _Material()
 
@@ -46,7 +50,7 @@ class _Solver:
     dt          : float = 0.01   # s   — time step
     iterations  : int   = 30     # —   — iterations per step
     I_eff_scale : float = 2.0   # —   — rotational inertia scale factor %
-    zeta_bend   : float = 1   # —   — bending damping ratio
+    zeta_bend   : float = 0.0563   # —   — bending damping ratio
 
 SOLVER = _Solver()
 
@@ -121,6 +125,7 @@ def create_sim() -> tuple[WireSimulator, WireParams]:
     # ── Rayleigh constraint damping ────────────────────────────────────────
     omega_seg = np.sqrt(m.E * w.I_bending / (m_node * L**3))
     beta_bend = s.zeta_bend * (2.0 / omega_seg)
+
 
     # ── Assemble WireParams ────────────────────────────────────────────────
     params = WireParams(
