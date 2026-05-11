@@ -10,7 +10,7 @@ class _Wire:
     # Overall
     total_length : float = 0.460       # m
     n_nodes      : int   = 20          # number of simulation nodes
-    diameter     : float = 0.014       # m
+    diameter     : float = 0.016       # m
 
     # Derived cross-section (solid circular)
     @property
@@ -31,7 +31,7 @@ class _Material:
     """
     Elastic and inertial material properties.
     """
-    E   : float = 6230e6    # Pa   — Young's modulus  
+    E   : float = 5.0e6    # Pa   — Young's modulus  
     nu  : float = 0.3      # —    — Poisson's ratio  
     rho : float = 400    # kg/m³ — density
 
