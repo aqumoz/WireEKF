@@ -5,7 +5,6 @@ from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 from sim_setup import create_sim, gravity_forces, WIRE, SOLVER
 from visualization import plot_rod_frames
 
-
 # ============================================================
 # 1.  Build simulator from calibrated parameters
 # ============================================================
@@ -48,18 +47,18 @@ f_ext[-6:] += tip_force
 sim_time = 10.0
 steps    = np.arange(0.0, sim_time + SOLVER.dt, SOLVER.dt)
 
-fig = plt.figure(figsize=(9, 7))
-ax  = fig.add_subplot(111, projection='3d')
-plt.ion()
-plt.show()
+# fig = plt.figure(figsize=(9, 7))
+# ax  = fig.add_subplot(111, projection='3d')
+# plt.ion()
+# plt.show()
 
 for time in steps:
     x_init, v_init, _cw, ee_wrench = sim.estimate_wire_state(
         x_init, v_init, ee_pos, ee_quat, np.zeros(6), f_ext,
     )
 
-    plot_rod_frames(ax, x_init, params.dof, params.N, time, frame_scale=0.015)
-    plt.pause(0.001)
+    #plot_rod_frames(ax, x_init, params.dof, params.N, time, frame_scale=0.015)
+    #plt.pause(0.001)
 
-plt.ioff()
-plt.show()
+# plt.ioff()
+# plt.show()
