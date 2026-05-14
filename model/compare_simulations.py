@@ -29,15 +29,14 @@ os.makedirs('results', exist_ok=True)
 MODEL_DIR = r"model\Simulink_model"   # folder with cable_model.slx
 
 # ── Shared initial conditions (both models use these) ────────────────────────
-SIM_TIME     = 20.0
+SIM_TIME     = 1
 BASE_POS     = np.array([0.0, 0.0, 0.0])
 BASE_EULER   = np.array([0.0, np.pi / 2, 0.0])   # cable z-axis → world X
 JOINT_BEND_Y = np.deg2rad(0)
-F_LAST_NODE  = np.array([0.0, -0.0, 0.0, 0.0, 0.0, 0.0])  # tip load [N]
+F_LAST_NODE  = np.array([0.0, -0.1, 0.0, 0.0, 0.0, 0.0])  # tip load [N]
 
 # Simulink fixed step (keep at 1e-3 for Simscape Multibody stability)
 SIMULINK_DT = 1e-3
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 1.  Shared parameters
@@ -62,7 +61,6 @@ joint_angles[1, :] = JOINT_BEND_Y
 print("=== Shared parameters ===")
 print(f"  N={N}, L={L*1e3:.1f} mm, E={MATERIAL.E:.3e} Pa")
 print(f"  m_node={m_node*1e3:.3f} g, SIM_TIME={SIM_TIME} s")
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # 2.  Run Python XPBD simulation
@@ -148,7 +146,7 @@ eng.eval(f"joint_angles = reshape(tmp, 3, {N-1});", nargout=0)
 eng.eval("clear tmp", nargout=0)
 
 # Scalar workspace variables
-stiffness = float(1.0 / alpha_bend[0])
+stiffness = float(1.0 / alpha_bend[2])
 eng.workspace['stiffness'] = stiffness
 eng.workspace['damp']      = 0.5
 eng.workspace['m_node']    = float(m_node)
