@@ -9,7 +9,7 @@ class _Wire:
 
     # Overall
     total_length : float = 0.460       # m
-    n_nodes      : int   = 20          # number of simulation nodes
+    n_nodes      : int   = 10          # number of simulation nodes
     diameter     : float = 0.015       # m
 
     # Derived cross-section (solid circular)

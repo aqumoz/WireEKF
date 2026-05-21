@@ -11,9 +11,16 @@ xpbd_core.*.pyd (Windows) will appear in this directory.
 wire_simulator.py will automatically use it.
 """
 
+import sys
+
 from setuptools import setup, Extension
 import pybind11
 import numpy as np
+
+if sys.platform == "win32":
+        compile_args = ["/O2", "/std:c++17"]
+else:  # Linux, macOS, etc.
+    compile_args = ["-O2", "-std=c++17"]
 
 ext = Extension(
     "xpbd_core",
@@ -23,9 +30,9 @@ ext = Extension(
         np.get_include(),
     ],
     extra_compile_args=[
-        "/O2",          # MSVC optimisation (Windows)
-        "/std:c++17",
+        *compile_args
     ],
+    
     language="c++",
 )
 

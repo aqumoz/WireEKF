@@ -139,6 +139,13 @@ class WireSimulator:
         Advance the simulation by one XPBD timestep.
         Returns (x_new, v_new, CW, ee_wrench).
         """
+
+        # l = [x_init, v_init, ee_pos, ee_quat, ft, f_ext]
+        # i = 0
+        # for arr in l:
+        #     print(f"Input {i}: shape={arr.shape}, dtype={arr.dtype}, first3={arr.flatten()[:3]}")
+        #     i += 1
+
         if self._cpp is not None:
             return self._cpp.estimate_wire_state(
                 np.ascontiguousarray(x_init, np.float64),
