@@ -16,6 +16,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D   # noqa: F401
@@ -27,7 +28,7 @@ import sys
 sys.path.append("../")  
 
 
-from WireEKF.learning.models.multitaskGP import load_model, CorrectedDLOModel
+from WireEKF.learning.models.multitaskGP import load_model, CorrectedDLOModel, CorrectedDLOModel_VEL
 
 
 def main():
@@ -108,21 +109,26 @@ def main():
     xpbd_pos    = []
     xpbd_quat   = []
     xpbd_wrench = []
+    xpbd_vel    = []
+
 
     for k, t in enumerate(steps):
         x_cur, v_cur, _, ee_wrench = sim.estimate_wire_state(
             x_cur, v_cur, ee_pos, ee_quat, np.zeros(6), f_ext
         )
         nodes = x_cur.reshape(N, 7)
+        velocity = v_cur.reshape(N, 6)
         xpbd_pos.append(nodes[:, :3].copy())
         xpbd_quat.append(nodes[:, 3:7].copy())
         xpbd_wrench.append(ee_wrench.copy())
+        xpbd_vel.append(velocity[:, :3].copy())
         if k % 200 == 0:
             print(f"  t = {t:.2f} s / {SIM_TIME:.1f} s")
 
     xpbd_pos    = np.array(xpbd_pos)     # (n_steps, N, 3)
     xpbd_quat   = np.array(xpbd_quat)    # (n_steps, N, 4)  [qx, qy, qz, qw]
     xpbd_wrench = np.array(xpbd_wrench)  # (n_steps, 6)
+    xpbd_vel    = np.array(xpbd_vel)     # (n_steps, N, 3)
     xpbd_times  = steps
     print(f"  Done. {len(steps)} steps.")
 
@@ -138,6 +144,9 @@ def main():
             row[f'node_{i}_qy'] = xpbd_quat[k, i, 1]
             row[f'node_{i}_qz'] = xpbd_quat[k, i, 2]
             row[f'node_{i}_qw'] = xpbd_quat[k, i, 3]
+            row[f'node_{i}_vx'] = xpbd_vel[k, i, 0]
+            row[f'node_{i}_vy'] = xpbd_vel[k, i, 1]
+            row[f'node_{i}_vz'] = xpbd_vel[k, i, 2]
         row['ee_fx'] = xpbd_wrench[k, 0]
         row['ee_fy'] = xpbd_wrench[k, 1]
         row['ee_fz'] = xpbd_wrench[k, 2]
@@ -193,7 +202,7 @@ def main():
     # Scalar workspace variables
     stiffness = float(1.0 / alpha_bend[0])
     eng.workspace['stiffness'] = stiffness
-    eng.workspace['damp']      = 0.5
+    eng.workspace['damp']      = 0.01
     eng.workspace['m_node']    = float(m_node)
     eng.workspace['I_node']    = float(I_eff)
 
@@ -274,7 +283,7 @@ def main():
 
 
 
-    model, likelihood = load_model("learning/models/gp_model.pth")
+    model, likelihood = load_model("learning/models/gp_model_first_gif.pth")
     corrected_model = CorrectedDLOModel(model, likelihood)
 
 
@@ -297,13 +306,17 @@ def main():
         xi = np.argmin(np.abs(xpbd_times - t_snap))
         xp = xpbd_pos[xi]   # (N, 3)
 
+        xpbd_force_xi  = xpbd_wrench[xi, :3]   # (3,)
+        xpbd_torque_xi = xpbd_wrench[xi, 3:]   # (3,)
+
         # Simulink — nearest timestep
         si2 = np.argmin(np.abs(sl_time - t_snap))
         sp  = sl_pos[si2]   # (N_sl, 3)
-
+        xpbd_vel_xi    = xpbd_vel[xi].flatten()
         # GP-corrected Simulink — predict residuals and add to Simulink positions
-        cp = corrected_model.predict(sp, ft_tcp[si2], torque_tcp[si2])
-
+        # cp = corrected_model.predict(sp, ft_tcp[si2], torque_tcp[si2])
+        cp = corrected_model.predict(sp, xpbd_force_xi, xpbd_torque_xi, t_snap)
+        print(cp, t_snap)
         ax.plot(xp[:, 0], xp[:, 1], xp[:, 2],
                 'o-', color=C_XPBD, lw=2, ms=4,
                 label='XPBD' if si == 0 else '')
@@ -342,6 +355,200 @@ def main():
     print("\nSaved " + os.path.join(save_path, 'comparison.png'))
     #plt.show()
 
+    from matplotlib.animation import FuncAnimation
+
+    C_XPBD      = '#C62828'
+    C_SL        = '#1565C0'
+    C_CORRECTED = '#2E7D32'
+
+    # Subsample to every 10th frame to keep animation smooth
+    step = 5
+    anim_times   = xpbd_times[::step]
+    anim_xpbd    = xpbd_pos[::step]       # (T, N, 3)
+    anim_wrench  = xpbd_wrench[::step]    # (T, 6)
+    anim_vel     = xpbd_vel[::step]       # (T, N, 3)
+
+    # Match Simulink frames to subsampled times
+    anim_sl_idx  = [np.argmin(np.abs(sl_time - t)) for t in anim_times]
+    anim_sl      = sl_pos[anim_sl_idx]    # (T, N, 3)
+
+    fig = plt.figure(figsize=(6, 6))
+    ax  = fig.add_subplot(111, projection='3d')
+
+    line_xpbd, = ax.plot([], [], [], 'o-', color=C_XPBD, lw=2, ms=4, label='XPBD')
+    line_sl,   = ax.plot([], [], [], 's--', color=C_SL,  lw=2, ms=5, label='Simulink')
+    line_gp,   = ax.plot([], [], [], '^:', color=C_CORRECTED, lw=2, ms=5, label='Simulink + GP')
+    title       = ax.set_title('')
+
+    ax.set_xlabel('X [m]')
+    ax.set_ylabel('Y [m]')
+    ax.set_zlabel('Z [m]')
+    ax.legend(loc='upper left', fontsize=8)
+    ax.view_init(elev=20, azim=-60)
+
+    # Compute fixed axis limits across all frames
+    all_pts = np.vstack([anim_xpbd.reshape(-1, 3), anim_sl.reshape(-1, 3)])
+    mid     = all_pts.mean(axis=0)
+    half    = np.ptp(all_pts, axis=0).max() / 2 + 0.02
+    ax.set_xlim(mid[0]-half, mid[0]+half)
+    ax.set_ylim(mid[1]-half, mid[1]+half)
+    ax.set_zlim(mid[2]-half, mid[2]+half)
+    try:
+        ax.set_box_aspect([1, 1, 1])
+    except AttributeError:
+        pass
+
+    from mpl_toolkits.mplot3d.art3d import Line3D
+    uncertainty_collection = [None]
+    def update(k):
+        xp = anim_xpbd[k]                        
+        sp = anim_sl[k]                           
+        force_k  = anim_wrench[k, :3]            
+        torque_k = anim_wrench[k, 3:]            
+        t_k      = float(anim_times[k])
+
+        cp, lower, upper = corrected_model.predict_with_uncertainty(sp, force_k, torque_k, t_k)   # (N, 3), (N, 3), (N, 3)
+
+        line_xpbd.set_data(xp[:, 0], xp[:, 1])
+        line_xpbd.set_3d_properties(xp[:, 2])  # type: ignore[attr-defined]
+
+        line_sl.set_data(sp[:, 0], sp[:, 1])
+        line_sl.set_3d_properties(sp[:, 2])    # type: ignore[attr-defined]
+
+        line_gp.set_data(cp[:, 0], cp[:, 1])
+        line_gp.set_3d_properties(cp[:, 2])    # type: ignore[attr-defined]
+
+        # ── Uncertainty bounds ───────────────────────────────────────────
+        if uncertainty_collection[0] is not None:
+            for col in uncertainty_collection[0]:
+                col.remove()
+
+        collections = []
+
+        # Upper and lower bound lines along each axis independently
+        for sign, bound in [(+1, upper), (-1, lower)]:
+            band, = ax.plot(
+                bound[:, 0],
+                bound[:, 1],
+                bound[:, 2],
+                '--', color=C_CORRECTED, lw=1.0, alpha=0.3,
+            )
+            collections.append(band)
+
+        # Vertical connectors between upper and lower at each node
+        for i in range(len(cp)):
+            connector, = ax.plot(
+                [lower[i, 0], upper[i, 0]],
+                [lower[i, 1], upper[i, 1]],
+                [lower[i, 2], upper[i, 2]],
+                '-', color=C_CORRECTED, lw=0.5, alpha=0.15,
+            )
+            collections.append(connector)
+
+        uncertainty_collection[0] = collections
+    # ─────────────────────────────────────────────────────────────────
+
+        title.set_text(f't = {t_k:.2f} s  (frame {k}/{len(anim_times)-1})')
+        return line_xpbd, line_sl, line_gp, title
+# Add uncertainty surface collection — one per frame, stored so we can remove it
+    # uncertainty_collection = [None]
+
+    # def update(k):
+    #     xp = anim_xpbd[k]                        
+    #     sp = anim_sl[k]                           
+    #     force_k  = anim_wrench[k, :3]            
+    #     torque_k = anim_wrench[k, 3:]            
+    #     t_k      = float(anim_times[k])
+
+    #     cp, std = corrected_model.predict(sp, force_k, torque_k, t_k)   # (N, 3), (N, 3)
+
+    #     line_xpbd.set_data(xp[:, 0], xp[:, 1])
+    #     line_xpbd.set_3d_properties(xp[:, 2])  # type: ignore[attr-defined]
+
+    #     line_sl.set_data(sp[:, 0], sp[:, 1])
+    #     line_sl.set_3d_properties(sp[:, 2])    # type: ignore[attr-defined]
+
+    #     line_gp.set_data(cp[:, 0], cp[:, 1])
+    #     line_gp.set_3d_properties(cp[:, 2])    # type: ignore[attr-defined]
+
+    #     # ── Uncertainty tube ─────────────────────────────────────────────
+    #     # Remove previous uncertainty bands
+    #     if uncertainty_collection[0] is not None:
+    #         for col in uncertainty_collection[0]:
+    #             col.remove()
+
+    #     # Draw ±1 std as thin transparent lines in XZ and YZ planes
+    #     n_bands  = 8                          # number of lines around the tube
+    #     angles   = np.linspace(0, 2*np.pi, n_bands, endpoint=False)
+    #     std_norm = np.linalg.norm(std, axis=1)  # (N,) scalar std per node
+
+    #     collections = []
+    #     for angle in angles:
+    #         # Offset in a direction perpendicular to the wire
+    #         # Use a simple 2D rotation in XY, XZ planes
+    #         offset_x = std_norm * np.cos(angle)
+    #         offset_z = std_norm * np.sin(angle)
+
+    #         band, = ax.plot(
+    #             cp[:, 0] + offset_x,
+    #             cp[:, 1],
+    #             cp[:, 2] + offset_z,
+    #             '-', color=C_CORRECTED, lw=0.5, alpha=0.15,
+    #         )
+    #         collections.append(band)
+
+    #     # Also draw ±1 std bounds along each axis as dashed lines
+    #     for sign in [+1, -1]:
+    #         for axis_offset in [(std_norm, 0, 0), (0, std_norm, 0), (0, 0, std_norm)]:
+    #             band, = ax.plot(
+    #                 cp[:, 0] + sign * axis_offset[0],
+    #                 cp[:, 1] + sign * axis_offset[1],
+    #                 cp[:, 2] + sign * axis_offset[2],
+    #                 '--', color=C_CORRECTED, lw=0.8, alpha=0.2,
+    #             )
+    #             collections.append(band)
+
+    #     uncertainty_collection[0] = collections
+    #     # ─────────────────────────────────────────────────────────────────
+
+    #     title.set_text(f't = {t_k:.2f} s  (frame {k}/{len(anim_times)-1})')
+    #     return line_xpbd, line_sl, line_gp, title
+
+    # def update(k):
+    #     xp = anim_xpbd[k]                        # (N, 3)
+    #     sp = anim_sl[k]                           # (N, 3)
+    #     force_k  = anim_wrench[k, :3]            # (3,)
+    #     torque_k = anim_wrench[k, 3:]            # (3,)
+    #     t_k      = float(anim_times[k])
+
+    #     cp = corrected_model.predict(sp, force_k, torque_k, t_k)   # (N, 3)
+
+    #     line_xpbd.set_data(xp[:, 0], xp[:, 1])
+    #     line_xpbd.set_3d_properties(xp[:, 2])
+
+    #     line_sl.set_data(sp[:, 0], sp[:, 1])
+    #     line_sl.set_3d_properties(sp[:, 2])
+
+    #     line_gp.set_data(cp[:, 0], cp[:, 1])
+    #     line_gp.set_3d_properties(cp[:, 2])
+
+    #     title.set_text(f't = {t_k:.2f} s  (frame {k}/{len(anim_times)-1})')
+    #     return line_xpbd, line_sl, line_gp, title
+
+    anim = FuncAnimation(
+        fig,
+        update,
+        frames=len(anim_times),
+        interval=50,       # ms between frames — increase to slow down
+        blit=False,        # blit=False needed for 3D axes in matplotlib
+    )
+
+    plt.tight_layout()
+    plt.show()
+    anim.save(os.path.join(save_path, 'comparison.gif'), 
+          writer='pillow', fps=20, dpi=100)
+    print("\nSaved " + os.path.join(save_path, 'comparison.mp4'))
+
 if __name__ == "__main__":
-    for i in range(5):
+    for i in range(1):
         main()

@@ -6,7 +6,7 @@ import numpy as np
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
     def __init__(self, num_latents, num_tasks, num_inputs):
         # Let's use a different set of inducing points for each latent function
-        inducing_points = torch.rand(num_latents, 16, num_inputs)
+        inducing_points = torch.rand(num_latents, 128, num_inputs)
 
         # We have to mark the CholeskyVariationalDistribution as batch
         # so that we learn a variational distribution for each task
@@ -81,7 +81,7 @@ class CorrectedDLOModel:
         self.model.eval()
         self.likelihood.eval()
 
-    def predict(self, sl_pos, ft_tcp, torque_tcp):
+    def predict(self, sl_pos, ft_tcp, torque_tcp, t_snap):
         """
         sl_pos    : np.ndarray (N_nodes, 3) — Simulink node positions
         ft_tcp    : np.ndarray (3,)         — force at TCP from Simulink
@@ -90,7 +90,52 @@ class CorrectedDLOModel:
         Returns corrected node positions as np.ndarray (N_nodes, 3)
         """
         # Build the same input format your GP was trained on
-        x_input = np.concatenate([ft_tcp, torque_tcp])           # (6,)
+        x_input = np.concatenate([np.array([t_snap]), ft_tcp, torque_tcp])           # (6,)
+        x_tensor = torch.tensor(x_input, dtype=torch.float32).unsqueeze(0)  # (1, 6)
+
+        # Get GP residual prediction
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            preds = self.likelihood(self.model(x_tensor))
+            residual = preds.mean.numpy()   # (1, N_nodes * 3)
+
+        residual = residual.reshape(sl_pos.shape)  # (N_nodes, 3)
+        
+        # Corrected position = Simulink + residual
+        return sl_pos + residual
+
+    def predict_with_uncertainty(self, sl_pos, ft_tcp, torque_tcp, t_snap):
+        """Same but also returns 2-sigma confidence bounds."""
+        x_input = np.concatenate([np.array([t_snap]), ft_tcp, torque_tcp])
+        x_tensor = torch.tensor(x_input, dtype=torch.float32).unsqueeze(0)
+
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            preds = self.likelihood(self.model(x_tensor))
+            residual = preds.mean.numpy().reshape(sl_pos.shape)
+            lower, upper = preds.confidence_region()
+            lower = lower.numpy().reshape(sl_pos.shape)
+            upper = upper.numpy().reshape(sl_pos.shape)
+
+        corrected = sl_pos + residual
+        return corrected, sl_pos + lower, sl_pos + upper
+    
+class CorrectedDLOModel_VEL:
+    def __init__(self, model, likelihood):
+        self.model = model
+        self.likelihood = likelihood
+        self.model.eval()
+        self.likelihood.eval()
+
+    def predict(self, sl_pos, ft_tcp, torque_tcp, sl_vel):
+        """
+        sl_pos    : np.ndarray (N_nodes, 3) — Simulink node positions
+        ft_tcp    : np.ndarray (3,)         — force at TCP from XPBD
+        torque_tcp: np.ndarray (3,)         — torque at TCP from XPBD
+        sl_vel    : np.ndarray (3,)         — velocity at TCP from XPBD
+
+        Returns corrected node positions as np.ndarray (N_nodes, 3)
+        """
+        # Build the same input format your GP was trained on
+        x_input = np.concatenate([ft_tcp, torque_tcp, sl_vel])           # (6,)
         x_tensor = torch.tensor(x_input, dtype=torch.float32).unsqueeze(0)  # (1, 6)
 
         # Get GP residual prediction

@@ -48,3 +48,14 @@ codegen/
 
 # Cloud based storage dotfile
 .MATLABDriveTag
+
+results/
+results_2/
+results_3/
+results_test/
+learning/models/gp_model_first_gif.pth
+learning/models/gp_model.pth
+learning/models/gp_model1.pth
+learning/models/gp_model2.pth
+learning/models/gp_model3.pth
+learning/models/gp_model4.pth
