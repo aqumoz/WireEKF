@@ -6,7 +6,7 @@ import numpy as np
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
     def __init__(self, num_latents, num_tasks, num_inputs):
         # Let's use a different set of inducing points for each latent function
-        inducing_points = torch.rand(num_latents, 128, num_inputs)
+        inducing_points = torch.rand(num_latents, 64, num_inputs)
 
         # We have to mark the CholeskyVariationalDistribution as batch
         # so that we learn a variational distribution for each task
