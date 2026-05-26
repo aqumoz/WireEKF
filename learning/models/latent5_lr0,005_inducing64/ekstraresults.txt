@@ -1,0 +1,64 @@
+combined_model combined_data:
+Test RMSE: 0.0085
+Test NLL:  -2831419.5000
+Test ELBO: -173.2012
+
+old_model old_data:
+Test RMSE: 0.0076
+Test NLL:  -1648975.6250
+Test ELBO: -175.8779
+
+new_model new_data:
+Test RMSE: 0.0072
+Test NLL:  -1289681.2500
+Test ELBO: -176.0691
+
+
+
+After evaluation:
+
+ - Model from old data:
+    - tested on new data:
+Test RMSE: 0.0356
+Test NLL:  -928413.1250
+    - tested on old data:
+Test RMSE: 0.0076
+Test NLL:  -1648962.8750
+    - tested on combined data:
+Test RMSE: 0.0287
+Test NLL:  -2351245.5000
+    - tested on no force data (steady state)
+Test RMSE: 0.0124
+Test NLL:  -1302867.6250
+
+
+
+ - Model from new data:
+    - tested on new data:
+Test RMSE: 0.0072
+Test NLL:  -1289654.3750
+    - tested on old data:
+Test RMSE: 0.0145
+Test NLL:  nan # caused but non convergens of the conjugate gradient solver
+    - tested on combined data:
+Test RMSE: 0.0110
+Test NLL:  nan  # caused but non convergens of the conjugate gradient solver
+    - tested on no force data (steady state)
+Test RMSE: 0.0063
+Test NLL:  -1300464.0000
+
+
+
+ - Model from combined data    
+    - tested on new data:
+Test RMSE: 0.0086
+Test NLL:  -1280554.5000
+    - tested on old data:
+Test RMSE: 0.0071
+Test NLL:  -1650420.1250
+    - tested on combined data:
+Test RMSE: 0.0085
+Test NLL:  -2831423.5000
+    - tested on no force data (steady state)
+Test RMSE: 0.0052
+Test NLL:  -1295588.0000

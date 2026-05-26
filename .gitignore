@@ -59,3 +59,10 @@ learning/models/gp_model1.pth
 learning/models/gp_model2.pth
 learning/models/gp_model3.pth
 learning/models/gp_model4.pth
+Dataset/
+Dataset_no_force/
+learning/models/combined.png
+learning/models/combined2.png
+learning/models/lantent6_lr0,1_inducing128/
+learning/models/new.png
+learning/models/new2.png
