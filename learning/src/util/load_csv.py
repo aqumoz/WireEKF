@@ -174,8 +174,8 @@ def trim_to_transient(df_xpbd, df_simulink, tip_node_idx,
 
 
 def load_simulated_data(file_path: str) -> tuple[torch.Tensor, torch.Tensor]:
-    df_xpbd = pd.read_csv(Path(file_path) / "xpbd_simulation.csv")
-    df_simulink = pd.read_csv(Path(file_path) / "simulink_simulation.csv")
+    df_xpbd = pd.read_csv(Path(file_path) / "xpbd.csv")
+    df_simulink = pd.read_csv(Path(file_path) / "simulink.csv")
 
     # df_xpbd, df_simulink = trim_to_transient(
     #     df_xpbd, df_simulink,

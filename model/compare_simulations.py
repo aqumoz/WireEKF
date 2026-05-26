@@ -283,7 +283,7 @@ def main():
 
 
 
-    model, likelihood = load_model("learning/models/gp_model_first_gif.pth")
+    model, likelihood = load_model("learning/models/latent5_lr0,005_inducing64/gp_model_new_data.pth")
     corrected_model = CorrectedDLOModel(model, likelihood)
 
 
